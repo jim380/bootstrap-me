@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jim380/bootstrap-me/cmd"
@@ -37,24 +39,38 @@ func getJson(url string, target interface{}) error {
 	return json.NewDecoder(r.Body).Decode(target)
 }
 
-func (res result) getList() (string, string) {
-	var firstP, restP, firstS, restS string
+func (res result) getList() ([]string, []string) {
+	var persistentPeers, seeds []string
 
-	for i, v := range res.PersistentPeers {
-		if i == 0 {
-			firstP = v.Id + "@" + v.Address
+	// TO-DO use go routine to allow parallel execution
+	for _, v := range res.PersistentPeers {
+		if !isReachable((v.Address)) {
+			continue
 		}
-		restP = restP + "," + v.Id + "@" + v.Address
+		persistentPeers = append(persistentPeers, v.Id+"@"+v.Address)
+
 	}
 
-	for i, v := range res.Seeds {
-		if i == 0 {
-			firstS = v.Id + "@" + v.Address
+	for _, v := range res.Seeds {
+		if !isReachable((v.Address)) {
+			continue
 		}
-		restS = restS + "," + v.Id + "@" + v.Address
+		seeds = append(seeds, v.Id+"@"+v.Address)
 	}
-	return (firstP + restP), (firstS + restS)
+
+	return persistentPeers, seeds
 }
+
+func isReachable(host string) bool {
+	_, err := net.DialTimeout("tcp", host, time.Duration(500)*time.Millisecond)
+	if err != nil {
+		fmt.Println(host + " is unreachable")
+		return false
+	}
+	return true
+
+}
+
 func main() {
 	var chain string
 	flag.StringVar(&chain, "chain", "", "Chain to query for")
@@ -67,7 +83,7 @@ func main() {
 
 	persistentPeers, seeds := result.getList()
 
-	fmt.Println("Seeds: " + seeds)
+	fmt.Println("Persistent Peers: " + strings.Join(persistentPeers[:], ","))
 	fmt.Println("")
-	fmt.Println("Persistent Peers: " + persistentPeers)
+	fmt.Println("Seeds: " + strings.Join(seeds[:], ","))
 }
