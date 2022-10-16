@@ -9,7 +9,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ip2location/ip2location-go"
 	"github.com/jim380/bootstrap-me/cmd"
+	"github.com/jim380/bootstrap-me/util"
 )
 
 type result struct {
@@ -71,6 +73,36 @@ func isReachable(host string) bool {
 
 }
 
+func (res result) getGeoData() {
+	db, err := ip2location.OpenDB("./IP2LOCATION-LITE-DB11.IPV6.BIN")
+
+	if err != nil {
+		fmt.Print(err)
+		return
+	}
+
+	for _, v := range res.PersistentPeers {
+		ip := strings.Split(v.Address, ":")[0]
+		if !util.ContainsOnlyNumbers(ip) {
+			old := ip
+			ip = util.DomainToIp(ip)
+			fmt.Println(ip + " (" + old + ")")
+		} else {
+			fmt.Println(ip)
+		}
+		result, err := db.Get_all(ip)
+
+		if err != nil {
+			fmt.Print(err)
+			return
+		}
+		fmt.Printf("country_short: %s\n", result.Country_short)
+		fmt.Printf("country_long: %s\n", result.Country_long)
+		fmt.Printf("region: %s\n", result.Region)
+		fmt.Printf("city: %s\n", result.City)
+	}
+}
+
 func main() {
 	var chain string
 	flag.StringVar(&chain, "chain", "", "Chain to query for")
@@ -86,4 +118,6 @@ func main() {
 	fmt.Println("Persistent Peers: " + strings.Join(persistentPeers[:], ","))
 	fmt.Println("")
 	fmt.Println("Seeds: " + strings.Join(seeds[:], ","))
+
+	result.getGeoData()
 }
