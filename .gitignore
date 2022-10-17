@@ -16,3 +16,6 @@
 
 # logs
 log
+
+# mac stuff
+.DS_Store
