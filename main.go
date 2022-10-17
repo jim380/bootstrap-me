@@ -11,6 +11,7 @@ import (
 
 	"github.com/ip2location/ip2location-go"
 	"github.com/jim380/bootstrap-me/cmd"
+	bnet "github.com/jim380/bootstrap-me/net"
 	"github.com/jim380/bootstrap-me/util"
 )
 
@@ -105,7 +106,9 @@ func (res result) getGeoData() {
 
 func main() {
 	var chain string
+	var portScan bool
 	flag.StringVar(&chain, "chain", "", "Chain to query for")
+	flag.BoolVar(&portScan, "scan", false, "Scan open ports of reachable hosts")
 	flag.Parse()
 
 	cmd.ValidateChain(chain)
@@ -114,10 +117,18 @@ func main() {
 	getJson(url, &result)
 
 	persistentPeers, seeds := result.getList()
-
 	fmt.Println("Persistent Peers: " + strings.Join(persistentPeers[:], ","))
 	fmt.Println("")
 	fmt.Println("Seeds: " + strings.Join(seeds[:], ","))
 
-	result.getGeoData()
+	if portScan {
+		fmt.Println("Port Scanning for Persistent Peers")
+		bnet.ScanOpenPorts(persistentPeers)
+		fmt.Println("")
+		fmt.Println("Port Scanning for Seeds")
+		bnet.ScanOpenPorts(seeds)
+		fmt.Println("")
+		fmt.Println("----------------------------------------------------------")
+	}
+	// result.getGeoData()
 }
