@@ -31,6 +31,44 @@ func worker(address string, ports, results chan int) {
 	}
 }
 
+func reachabilityWorker(host string, results chan string) {
+	address := strings.Split(host, "@")[1]
+	conn, err := net.DialTimeout("tcp", address, time.Duration(500)*time.Millisecond)
+	if err != nil {
+		fmt.Println(host + " is unreachable")
+		// send "unreachable" if port is closed
+		results <- "unreachable"
+		return
+	}
+	conn.Close()
+	results <- host
+}
+
+func CheckReachability(hosts []string) []string {
+	// a dedicated thread to pass results back to main
+	results := make(chan string, len(hosts))
+
+	var reachableHosts []string
+
+	// send work to the workers
+	for _, v := range hosts {
+		go reachabilityWorker(v, results)
+	}
+
+	// gather results
+	for i := 0; i < len(hosts); i++ {
+		host := <-results
+		if host != "unreachable" {
+			reachableHosts = append(reachableHosts, host)
+		}
+	}
+
+	// close the thread
+	close(results)
+
+	return reachableHosts
+}
+
 func ScanOpenPorts(addressList []string) {
 	var addresses []string
 	for _, v := range addressList {

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -44,34 +44,26 @@ func getJson(url string, target interface{}) error {
 
 func (res result) getList() ([]string, []string) {
 	var persistentPeers, seeds []string
-
-	// TO-DO use go routine to allow parallel execution
+	var reachablePersistentPeers, reachableSeeds []string
+	fmt.Println("********************************************************************")
+	fmt.Println("              Checking Reachability of Persistent Peers             ")
+	fmt.Println("********************************************************************")
 	for _, v := range res.PersistentPeers {
-		if !isReachable((v.Address)) {
-			continue
-		}
-		persistentPeers = append(persistentPeers, v.Id+"@"+v.Address)
-
+		reachablePersistentPeers = append(reachablePersistentPeers, v.Id+"@"+v.Address)
 	}
 
+	persistentPeers = bnet.CheckReachability(reachablePersistentPeers)
+
+	fmt.Println("********************************************************************")
+	fmt.Println("                   Checking Reachability of Seeds                   ")
+	fmt.Println("********************************************************************")
 	for _, v := range res.Seeds {
-		if !isReachable((v.Address)) {
-			continue
-		}
-		seeds = append(seeds, v.Id+"@"+v.Address)
+		reachableSeeds = append(reachableSeeds, v.Id+"@"+v.Address)
 	}
+
+	seeds = bnet.CheckReachability(reachableSeeds)
 
 	return persistentPeers, seeds
-}
-
-func isReachable(host string) bool {
-	_, err := net.DialTimeout("tcp", host, time.Duration(500)*time.Millisecond)
-	if err != nil {
-		fmt.Println(host + " is unreachable")
-		return false
-	}
-	return true
-
 }
 
 func (res result) getGeoData() {
@@ -106,28 +98,43 @@ func (res result) getGeoData() {
 
 func main() {
 	var chain string
-	var portScan bool
+	var portScan, help bool
 	flag.StringVar(&chain, "chain", "", "Chain to query for")
 	flag.BoolVar(&portScan, "scan", false, "Scan open ports of reachable hosts")
+	flag.BoolVar(&help, "help", false, "Show all supported chains")
 	flag.Parse()
+
+	if help {
+		fmt.Println("List of supported chains:")
+		fmt.Println("\n" + strings.Join(cmd.GetAllChains(), " "))
+		os.Exit(0)
+	}
 
 	cmd.ValidateChain(chain)
 	url := "https://raw.githubusercontent.com/cosmos/chain-registry/master/" + chain + "/chain.json"
 	result := result{}
 	getJson(url, &result)
-
+	fmt.Println("Running for " + chain)
 	persistentPeers, seeds := result.getList()
-	fmt.Println("Persistent Peers: " + strings.Join(persistentPeers[:], ","))
-	fmt.Println("")
-	fmt.Println("Seeds: " + strings.Join(seeds[:], ","))
+	fmt.Println("********************************************************************")
+	fmt.Println("                     Reachable Persistent Peers                     ")
+	fmt.Println("********************************************************************")
+	fmt.Println(strings.Join(persistentPeers[:], ","))
+	fmt.Println("********************************************************************")
+	fmt.Println("                          Reachable Seeds                           ")
+	fmt.Println("********************************************************************")
+	fmt.Println(strings.Join(seeds[:], ","))
 
 	if portScan {
-		fmt.Println("Port Scanning for Persistent Peers")
+		fmt.Println("********************************************************************")
+		fmt.Println("                           Port Scanning                           ")
+		fmt.Println("********************************************************************")
+		fmt.Println(">> Scanning Reachable Persistent Peers")
 		bnet.ScanOpenPorts(persistentPeers)
-		fmt.Println("")
-		fmt.Println("Port Scanning for Seeds")
+		fmt.Printf("\n")
+		fmt.Println(">> Scanning Reachable Seeds")
 		bnet.ScanOpenPorts(seeds)
-		fmt.Println("")
+		fmt.Printf("\n")
 		fmt.Println("----------------------------------------------------------")
 	}
 	// result.getGeoData()
